@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Experience</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #111;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        pre {
+            padding: 1rem;
+            background-color: #222;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-width: 100%;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 14px;
+        }
+        button {
+            padding: 12px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 25px;
+            border: none;
+            background-color: #f0f0f0;
+            color: #111;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <pre id="message-display">Waiting for message from React app...</pre>
+    <button id="ok-button">OK</button>
+
+    <script>
+        const messageDisplay = document.getElementById('message-display');
+        const okButton = document.getElementById('ok-button');
+
+        // Listen for the message from the React app
+        window.addEventListener('message', (event) => {
+            // Security check: only accept messages from the same origin
+            if (event.origin !== window.location.origin) return;
+
+            console.log('Message received from React:', event.data);
+            
+            // Display the exact message object, nicely formatted
+            messageDisplay.textContent = JSON.stringify(event.data, null, 2);
+        });
+
+        // When the "OK" button is clicked, send a simple confirmation message back
+        okButton.addEventListener('click', () => {
+            const message = 'AR_ACTIVITY_COMPLETE';
+
+            console.log('Sending message to React:', message);
+            window.parent.postMessage(message, window.location.origin);
+        });
+
+    </script>
+</body>
+</html>

@@ -401,7 +401,7 @@
                 directionalLight.dispose();
                 directionalLight = null;
             }
-           
+            movementGuide.classList.remove('visible');
             startContainer.style.display = 'flex';
             if(renderer) {
                 renderer.setAnimationLoop(null);

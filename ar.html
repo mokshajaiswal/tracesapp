@@ -136,18 +136,18 @@
 
         /* Movement guide animation styles */
         #movement-guide {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            z-index: 13;
-            color: white;
-            font-size: 16px;
-            font-weight: 500;
-        }
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                display: none;
+                flex-direction: column;
+                align-items: center;
+                z-index: 13;
+                color: white;
+                font-size: 16px;
+                font-weight: 500;
+            }
         #movement-guide.visible {
             display: flex;
         }
@@ -666,9 +666,9 @@
                 pin.lookAt(camera.position);
                 animatePinAppearance(position, true); // Pass true for default placement to make 2x bigger
                 tooltip.style.display = 'block';
-                tooltip.textContent = "Tap to collect it!";
+                tooltip.textContent = "No surface detected. Placed in front—tap to collect!";
                 setTimeout(() => {
-                    if(tooltip.textContent === "Tap to collect it!") {
+                    if(tooltip.textContent === "No surface detected. Placed in front—tap to collect!") {
                         tooltip.style.display = 'none';
                     }
                     if (pin.userData.bubble) {

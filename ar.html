@@ -666,9 +666,9 @@
                 pin.lookAt(camera.position);
                 animatePinAppearance(position, true); // Pass true for default placement to make 2x bigger
                 tooltip.style.display = 'block';
-                tooltip.textContent = "No surface detected. Placed in front—tap to collect!";
+                tooltip.textContent = "Tap to collect it!";
                 setTimeout(() => {
-                    if(tooltip.textContent === "No surface detected. Placed in front—tap to collect!") {
+                    if(tooltip.textContent === "Tap to collect it!") {
                         tooltip.style.display = 'none';
                     }
                     if (pin.userData.bubble) {

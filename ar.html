@@ -13,7 +13,6 @@
             color: #fff;
             overflow: hidden;
         }
-
         /* Container for the new start button */
         #start-container {
             position: fixed;
@@ -26,7 +25,6 @@
             align-items: center;
             z-index: 100;
         }
-
         /* Styles for the circular, animated Start AR button */
         .ar-button {
             width: 180px;
@@ -45,11 +43,9 @@
             transition: transform 0.2s ease;
             animation: pulse-border 2s infinite;
         }
-
         .ar-button:hover {
             transform: scale(1.05);
         }
-
         /* Keyframe animation for the pulsing border effect */
         @keyframes pulse-border {
             0% {
@@ -62,12 +58,11 @@
                 box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
             }
         }
-        
+       
         @keyframes fade-in {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
         /* AR specific elements */
         canvas {
             position: absolute;
@@ -86,7 +81,6 @@
             pointer-events: none;
             z-index: 11;
         }
-
         /* Arrow styles */
         .arrow {
             position: fixed;
@@ -115,7 +109,6 @@
         }
         #left-arrow { left: 15px; }
         #right-arrow { right: 15px; }
-
         /* CORRECTED Tooltip styles */
         #tooltip {
             position: fixed; /* Ensures positioning is relative to the browser window */
@@ -140,17 +133,59 @@
             text-align: center;
             box-sizing: border-box; /* Ensures padding is included in the width calculation */
         }
-        
+
+        /* Movement guide animation styles */
+        #movement-guide {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            z-index: 13;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        #movement-guide.visible {
+            display: flex;
+        }
+        #movement-guide .guide-text {
+            margin-bottom: 10px;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+        #movement-guide .guide-arrows {
+            display: flex;
+            justify-content: center;
+        }
+        #movement-guide .guide-arrow {
+            width: 30px;
+            height: 30px;
+            margin: 0 10px;
+            animation: guide-pulse 1.5s infinite ease-in-out;
+        }
+        @keyframes guide-pulse {
+            0%, 100% {
+                opacity: 0.5;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+        }
+       
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
 <body>
-
     <div id="start-container">
         <button id="start-ar-button" class="ar-button">Start AR</button>
     </div>
-
     <div id="overlay">
         <div id="left-arrow" class="arrow">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -159,8 +194,14 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </div>
         <div id="tooltip">Look around to find the Trace!</div>
+        <div id="movement-guide">
+            <div class="guide-text">Move your phone around to scan</div>
+            <div class="guide-arrows">
+                <svg class="guide-arrow" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                <svg class="guide-arrow" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </div>
+        </div>
     </div>
-
      <script type="importmap">
     {
         "imports": {
@@ -169,11 +210,10 @@
         }
     }
     </script>
-
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        
+       
         // --- Global Variables ---
         let camera, scene, renderer;
         let pin;
@@ -187,45 +227,49 @@
         let lastTimestamp = 0;
         let confettiParticles = [];
         let traceData = null;
-
+        let sessionStartTime = 0;
         // --- CONFIGURATION ---
         const CONFIG = {
-            MIN_DISTANCE: 2.0,
-            MAX_DISTANCE: 4.0,
-            RANDOM_RADIUS: 0.6,
-            ROTATION_SPEED: 0.01
+            MIN_DISTANCE: 1.4,
+            MAX_DISTANCE: 2.5,
+            RANDOM_RADIUS: 0,
+            ROTATION_SPEED: 0.01,
+            HORIZONTAL_THRESHOLD: 0.95, // Cosine similarity threshold for horizontal planes
+            SURFACE_DETECTION_TIMEOUT: 8000, // 8 seconds
+            DEFAULT_PLACEMENT_DISTANCE: 2.0, // Default distance in front if no surface (changed to 1m)
+            CHAT_BUBBLE_CANVAS_WIDTH: 260,
+            CHAT_BUBBLE_CANVAS_HEIGHT: 60,
+            CHAT_BUBBLE_VERTICAL_OFFSET: 22
         };
         const enableDirectionalLight = true;
         let directionalLight = null;
         const isAxisVisible = true;
-        const modelOffset = new THREE.Vector3(0, 0.06, 0); 
-
+        const modelOffset = new THREE.Vector3(0, 0.06, 0);
         // DOM Elements
         const startButton = document.getElementById('start-ar-button');
         const startContainer = document.getElementById('start-container');
         const leftArrow = document.getElementById('left-arrow');
         const rightArrow = document.getElementById('right-arrow');
         const tooltip = document.getElementById('tooltip');
-
+        const movementGuide = document.getElementById('movement-guide');
         function init() {
              window.addEventListener('message', (event) => {
             // Optional: Add a security check for the event's origin
             // if (event.origin !== "https://your-app-domain.com") return;
-            
+           
             traceData = event.data;
             console.log("Received trace data for AR:", traceData);
         });
             startButton.addEventListener('click', onStartAR);
-
+            createPin(); // Preload the pin model on init for faster appearance
         }
-        
+       
         function createShadow(modelSize) {
             const shadowSizeMultiplier = 0.35;
             const shadowOpacity = 0.4;
             const shadowBlurriness = 0.25;
             const shadowOffsetX = 0;
             const shadowOffsetZ = 0.05;
-
             const canvas = document.createElement('canvas');
             const canvasSize = 128;
             canvas.width = canvasSize;
@@ -253,7 +297,31 @@
             shadowMesh.position.z = shadowOffsetZ;
             return shadowMesh;
         }
-
+        function createChatBubble(text, modelSize) {
+            const canvas = document.createElement('canvas');
+            canvas.width = CONFIG.CHAT_BUBBLE_CANVAS_WIDTH;
+            canvas.height = CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT;
+            const ctx = canvas.getContext('2d');
+            // Draw rounded rectangle bubble with less padding
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            const padding = 10;
+            ctx.roundRect(padding, padding, CONFIG.CHAT_BUBBLE_CANVAS_WIDTH - 2 * padding, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT - 2 * padding, 15);
+            ctx.fill();
+            // Draw text
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 20px Arial'; // Slightly smaller font if needed
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, CONFIG.CHAT_BUBBLE_CANVAS_WIDTH / 2, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT / 2);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            const geometry = new THREE.PlaneGeometry(CONFIG.CHAT_BUBBLE_CANVAS_WIDTH / 5, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT / 4); // Adjusted local size before scale
+            const bubble = new THREE.Mesh(geometry, material);
+            // Position higher above the model
+            bubble.position.y = modelSize.y / 2 + CONFIG.CHAT_BUBBLE_VERTICAL_OFFSET;
+            return bubble;
+        }
         function setupARScene() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -267,18 +335,16 @@
             ambientLight.position.set(0.5, 1, 0.25);
             scene.add(ambientLight);
             if (enableDirectionalLight) {
-                directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); 
+                directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
                 directionalLight.position.set(1, 1, 1);
                 scene.add(directionalLight);
             }
-            createPin();
+            if (pin) scene.add(pin); // Add preloaded pin to scene
             renderer.setAnimationLoop(render);
             window.addEventListener('resize', onWindowResize, false);
         }
-
         async function onStartAR() {
             startContainer.style.display = 'none';
-
             if (!('xr' in navigator)) {
                 alert("Your browser does not support WebXR."); return;
             }
@@ -298,7 +364,6 @@
                 startContainer.style.display = 'flex';
             }
         }
-
         function onSessionStarted(session) {
             currentSession = session;
             session.addEventListener('end', onSessionEnded);
@@ -306,15 +371,17 @@
             setupARScene();
             renderer.xr.setReferenceSpaceType('local');
             renderer.xr.setSession(session);
+            sessionStartTime = Date.now(); // Start timeout timer
+            movementGuide.classList.add('visible'); // Show movement guide
         }
-        
+       
         function onSelect() {
             // Only check for intersections if we have a model and it's visible
             if (pinPlaced && pin.visible && collectibleModel) {
                 raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
                 // Intersect with the specific model, not the whole "pin" group (which includes the shadow)
-                const intersects = raycaster.intersectObject(collectibleModel, true); 
-                
+                const intersects = raycaster.intersectObject(collectibleModel, true);
+               
                 if (intersects.length > 0) {
                     window.parent.postMessage('AR_ACTIVITY_COMPLETE', '*');
                     pin.visible = false;
@@ -324,7 +391,6 @@
                 }
             }
         }
-
         function onSessionEnded() {
             if (!currentSession) return;
             currentSession.removeEventListener('end', onSessionEnded);
@@ -335,9 +401,8 @@
                 directionalLight.dispose();
                 directionalLight = null;
             }
-            
+           
             startContainer.style.display = 'flex';
-
             if(renderer) {
                 renderer.setAnimationLoop(null);
                 if(renderer.domElement.parentNode) {
@@ -349,18 +414,16 @@
             if(pin) {
                 pin.visible = false;
             }
-            pinPlaced = false; 
+            pinPlaced = false;
             hitTestSource = null;
             hitTestSourceRequested = false;
             leftArrow.classList.remove('visible');
             rightArrow.classList.remove('visible');
             tooltip.style.display = 'none';
         }
-
         function createPin() {
             const loader = new GLTFLoader();
             let modelPath = 'model1.glb';
-
             if (traceData) {
             if (traceData.traceType === 'private') {
                 modelPath = 'models/heart.glb'; // Private traces
@@ -374,15 +437,13 @@
         } else {
             console.warn('Trace data not received from parent app. Using default model.');
         }
-
         console.log(`Loading model: ${modelPath}`); // For debugging
-
             loader.load(
                 modelPath,
                 function (gltf) {
                     const model = gltf.scene;
                     collectibleModel = model; // Store a reference to the model for precise tapping
-                    
+                   
                     const box = new THREE.Box3().setFromObject(model);
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
@@ -392,66 +453,93 @@
                     const shadow = createShadow(size);
                     shadow.position.y = -size.y / 2;
                     pin.add(shadow);
+                    const bubble = createChatBubble("Come closer and tap!", size);
+                    pin.add(bubble);
+                    pin.userData.bubble = bubble;
                     pin.scale.set(0.0125, 0.0125, 0.0125);
-                    axisHelper = new THREE.AxesHelper(5); 
+                    axisHelper = new THREE.AxesHelper(5);
                     pin.add(axisHelper);
                     axisHelper.visible = isAxisVisible;
                     pin.visible = false;
-                    if(scene) scene.add(pin);
+                    // Do not add to scene here; add in setupARScene
                 },
                 undefined,
                 function (error) {
                     console.error('An error happened while loading the model:', error);
-                    alert('Failed to load the custom 3D model. A fallback pin will be used instead.');
-                    // Fallback cone creation logic...
+                    // Removed alert to prevent session interruption
+                    // Fallback cone creation logic with larger size
+                    const geometry = new THREE.ConeGeometry(5, 15, 32); // Increased size for visibility
+                    const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+                    collectibleModel = new THREE.Mesh(geometry, material);
+                   
+                    const box = new THREE.Box3().setFromObject(collectibleModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    collectibleModel.position.sub(center);
+                    pin = new THREE.Group();
+                    pin.add(collectibleModel);
+                    const shadow = createShadow(size);
+                    shadow.position.y = -size.y / 2;
+                    pin.add(shadow);
+                    const bubble = createChatBubble("Come closer and tap!", size);
+                    pin.add(bubble);
+                    pin.userData.bubble = bubble;
+                    pin.scale.set(0.0125, 0.0125, 0.0125);
+                    axisHelper = new THREE.AxesHelper(5);
+                    pin.add(axisHelper);
+                    axisHelper.visible = isAxisVisible;
+                    pin.visible = false;
+                    // Do not add to scene here; add in setupARScene
+                    console.log('Fallback pin loaded'); // For debugging
                 }
             );
         }
-
         function onWindowResize() {
             if (!renderer) return;
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-
-        function animatePinAppearance(position) {
+        function animatePinAppearance(position, isDefaultPlacement = false) {
             pin.visible = true;
-            pin.scale.set(0, 0, 0); 
-            
+            pin.scale.set(0, 0, 0);
+           
+            const targetScale = isDefaultPlacement ? 0.029 : 0.0145; // 2x bigger for default placement
+           
             gsap.to(pin.scale, {
-                x: 0.0145,
-                y: 0.0145,
-                z: 0.0145,
+                x: targetScale,
+                y: targetScale,
+                z: targetScale,
                 duration: 1.5,
                 ease: "elastic.out(1, 0.5)",
                 onStart: () => {
                     createConfettiExplosion(position);
+                    // Trigger haptic vibration if supported
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate(200); // Vibrate for 200ms
+                    }
                 }
             });
         }
-        
+       
         function createConfettiExplosion(position) {
             const confettiCount = 100;
             const colors = [0xf44336, 0xe91e63, 0x9c27b0, 0x673ab7, 0x3f51b5, 0x2196f3, 0x03a9f4, 0x00bcd4, 0x009688, 0x4caf50, 0x8bc34a, 0xcddc39, 0xffeb3b, 0xffc107, 0xff9800];
-
             for (let i = 0; i < confettiCount; i++) {
                 // Bigger confetti pieces
                 const geometry = Math.random() > 0.5 ? new THREE.PlaneGeometry(0.025, 0.025) : new THREE.CircleGeometry(0.0125, 16);
-                
-                const material = new THREE.MeshBasicMaterial({ 
+               
+                const material = new THREE.MeshBasicMaterial({
                     color: colors[Math.floor(Math.random() * colors.length)],
                     side: THREE.DoubleSide,
                     transparent: true,
                     opacity: 1
                 });
                 const confetti = new THREE.Mesh(geometry, material);
-
                 confetti.position.copy(position);
                 confetti.position.y += 0.05;
-
                 confetti.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-                
+               
                 const spread = 0.3;
                 // Increased vertical velocity for a higher explosion
                 confetti.velocity = new THREE.Vector3(
@@ -462,29 +550,26 @@
                 confetti.angularVelocity = new THREE.Vector3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
                 confetti.lifetime = 2.0;
                 confetti.age = 0;
-                
+               
                 confettiParticles.push(confetti);
                 scene.add(confetti);
             }
         }
-        
+       
         function updateConfetti(dt) {
             const gravity = -0.6;
-            
+           
             for (let i = confettiParticles.length - 1; i >= 0; i--) {
                 const confetti = confettiParticles[i];
                 confetti.age += dt;
-
                 confetti.velocity.y += gravity * dt;
                 confetti.position.addScaledVector(confetti.velocity, dt);
                 confetti.rotation.x += confetti.angularVelocity.x * dt;
                 confetti.rotation.y += confetti.angularVelocity.y * dt;
                 confetti.rotation.z += confetti.angularVelocity.z * dt;
-
                 if (confetti.age > confetti.lifetime / 2) {
                     confetti.material.opacity = 1.0 - ((confetti.age - (confetti.lifetime / 2)) / (confetti.lifetime / 2));
                 }
-
                 if (confetti.age >= confetti.lifetime) {
                     scene.remove(confetti);
                     confetti.geometry.dispose();
@@ -493,16 +578,13 @@
                 }
             }
         }
-        
+       
         function render(timestamp, frame) {
             if (!frame || !renderer) return;
-
             const deltaTime = (timestamp - (lastTimestamp || timestamp)) / 1000;
             lastTimestamp = timestamp;
-
             const referenceSpace = renderer.xr.getReferenceSpace();
             const session = renderer.xr.getSession();
-
             if (hitTestSourceRequested === false) {
                 session.requestReferenceSpace('viewer').then((refSpace) => {
                     session.requestHitTestSource({ space: refSpace, entityTypes: ['plane'] }).then((source) => {
@@ -515,71 +597,95 @@
                 });
                 hitTestSourceRequested = true;
             }
-
             if (hitTestSource && !pinPlaced) {
                 const hitTestResults = frame.getHitTestResults(hitTestSource);
-                let lowestHit = null;
-                let lowestHitPosition = new THREE.Vector3();
-
+                let lowestHorizontalHit = null;
+                let lowestHorizontalPosition = new THREE.Vector3();
                 if (hitTestResults.length > 0) {
                     for (const hit of hitTestResults) {
                         const pose = hit.getPose(referenceSpace);
                         if (pose) {
-                            const hitPos = new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(pose.transform.matrix));
-                            if (lowestHit === null || hitPos.y < lowestHitPosition.y) {
-                                lowestHit = hit;
-                                lowestHitPosition.copy(hitPos);
+                            const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+                            const normal = new THREE.Vector3(matrix.elements[4], matrix.elements[5], matrix.elements[6]).normalize();
+                            if (Math.abs(normal.y) > CONFIG.HORIZONTAL_THRESHOLD) { // Horizontal plane check
+                                const hitPos = new THREE.Vector3().setFromMatrixPosition(matrix);
+                                if (lowestHorizontalHit === null || hitPos.y < lowestHorizontalPosition.y) {
+                                    lowestHorizontalHit = hit;
+                                    lowestHorizontalPosition.copy(hitPos);
+                                }
                             }
                         }
                     }
                 }
-                
-                if (lowestHit) {
+               
+                if (lowestHorizontalHit) {
                     const cameraPosition = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
-                    const distance = cameraPosition.distanceTo(lowestHitPosition);
-
+                    const distance = cameraPosition.distanceTo(lowestHorizontalPosition);
                     if (distance >= CONFIG.MIN_DISTANCE && distance <= CONFIG.MAX_DISTANCE) {
-                        pinPlaced = true; 
-                        
+                        pinPlaced = true;
+                       
                         const randomX = (Math.random() - 0.5) * 2 * CONFIG.RANDOM_RADIUS;
                         const randomZ = (Math.random() - 0.5) * 2 * CONFIG.RANDOM_RADIUS;
-                        const finalPosition = lowestHitPosition.clone().add(new THREE.Vector3(randomX, 0, randomZ));
-
+                        const finalPosition = lowestHorizontalPosition.clone().add(new THREE.Vector3(randomX, 0, randomZ));
                         pin.position.copy(finalPosition);
                         pin.position.add(modelOffset);
                         animatePinAppearance(pin.position);
-
                         tooltip.style.display = 'block';
                         tooltip.textContent = "There it is! Tap to collect it";
-                        setTimeout(() => { 
+                        setTimeout(() => {
                             if(tooltip.textContent === "There it is! Tap to collect it") {
                                 tooltip.style.display = 'none';
                             }
+                            if (pin.userData.bubble) {
+                                pin.userData.bubble.visible = false;
+                            }
                         }, 5000);
-
+                        movementGuide.classList.remove('visible'); // Hide movement guide once placed
                     } else {
                         tooltip.style.display = 'block';
                         if (distance < CONFIG.MIN_DISTANCE) {
-                             tooltip.textContent = "Surface is too close. Please move back.";
+                             tooltip.textContent = "Horizontal surface is too close. Please move back.";
                         } else {
-                             tooltip.textContent = "Surface is too far. Please move closer.";
+                             tooltip.textContent = "Horizontal surface is too far. Please move closer.";
                         }
                     }
                 } else if (!pinPlaced) {
                     tooltip.style.display = 'block';
-                    tooltip.textContent = `Look for a flat surface between ${CONFIG.MIN_DISTANCE}m and ${CONFIG.MAX_DISTANCE}m away!`;
+                    tooltip.textContent = `Look for a horizontal flat surface like the ground between ${CONFIG.MIN_DISTANCE}m and ${CONFIG.MAX_DISTANCE}m away!`;
                 }
             }
-            
+           
+            // Check for timeout if no surface detected
+            if (!pinPlaced && Date.now() - sessionStartTime > CONFIG.SURFACE_DETECTION_TIMEOUT) {
+                pinPlaced = true;
+                // Place in world space in front of camera
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyQuaternion(camera.quaternion);
+                const position = new THREE.Vector3().copy(camera.position).add(direction.multiplyScalar(CONFIG.DEFAULT_PLACEMENT_DISTANCE));
+                pin.position.copy(position);
+                pin.lookAt(camera.position);
+                animatePinAppearance(position, true); // Pass true for default placement to make 2x bigger
+                tooltip.style.display = 'block';
+                tooltip.textContent = "No surface detected. Placed in front—tap to collect!";
+                setTimeout(() => {
+                    if(tooltip.textContent === "No surface detected. Placed in front—tap to collect!") {
+                        tooltip.style.display = 'none';
+                    }
+                    if (pin.userData.bubble) {
+                        pin.userData.bubble.visible = false;
+                    }
+                }, 5000);
+                movementGuide.classList.remove('visible'); // Hide movement guide on timeout placement
+            }
+           
             if (confettiParticles.length > 0) {
                 updateConfetti(deltaTime);
             }
-
             if (pinPlaced && pin.visible) {
                 pin.rotation.y += CONFIG.ROTATION_SPEED;
                 const pinWorldPosition = pin.getWorldPosition(new THREE.Vector3());
                 const pinInCameraSpace = camera.worldToLocal(pinWorldPosition.clone());
-                
+               
                 if (pinInCameraSpace.z > 0) {
                      leftArrow.classList.add('visible');
                      rightArrow.classList.add('visible');
@@ -596,16 +702,18 @@
                         rightArrow.classList.remove('visible');
                     }
                 }
+                // Make chat bubble face the camera if it exists and is visible
+                if (pin.userData.bubble && pin.userData.bubble.visible) {
+                    pin.userData.bubble.lookAt(camera.position);
+                }
             } else {
                 leftArrow.classList.remove('visible');
                 rightArrow.classList.remove('visible');
             }
             renderer.render(scene, camera);
         }
-
         init();
-
     </script>
-    
+   
 </body>
 </html>

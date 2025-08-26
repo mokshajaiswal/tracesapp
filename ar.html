@@ -136,27 +136,26 @@
 
         /* Movement guide animation styles */
         #movement-guide {
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                display: none;
-                flex-direction: column;
-                align-items: center;
-                z-index: 13;
-                color: white;
-                font-size: 16px;
-                font-weight: 500;
-            }
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            z-index: 13;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+        }
         #movement-guide.visible {
             display: flex;
         }
         #movement-guide .guide-text {
             margin-bottom: 10px;
-            background: none;
+            background-color: rgba(0, 0, 0, 0.6);
             padding: 8px 16px;
             border-radius: 20px;
-            text-align: center;
         }
         #movement-guide .guide-arrows {
             display: flex;

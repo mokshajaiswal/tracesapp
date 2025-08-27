@@ -259,6 +259,7 @@
            
             traceData = event.data;
             console.log("Received trace data for AR:", traceData);
+             createPin();
         });
             startButton.addEventListener('click', onStartAR);
             createPin(); // Preload the pin model on init for faster appearance

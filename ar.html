@@ -259,10 +259,10 @@
            
             traceData = event.data;
             console.log("Received trace data for AR:", traceData);
-             createPin();
+            createPin();
         });
             startButton.addEventListener('click', onStartAR);
-            createPin(); // Preload the pin model on init for faster appearance
+            // Preload the pin model on init for faster appearance
         }
        
         function createShadow(modelSize) {
@@ -426,17 +426,13 @@
             const loader = new GLTFLoader();
             let modelPath = 'model1.glb';
             if (traceData) {
-                console.log("Trace data available:", traceData);
             if (traceData.traceType === 'private') {
                 modelPath = 'heart.glb'; // Private traces
-                console.log("Loading private trace model");
             } else if (traceData.traceType === 'public') {
                 if (traceData.isFriend) {
                     modelPath = 'stargreen.glb'; // Public traces from a friend
-                    console.log("Loading public friend trace model");
                 } else {
                     modelPath = 'staryellow.glb'; // Public traces from a non-friend
-                    console.log("Loading public non-friend trace model");
                 }
             }
         } else {

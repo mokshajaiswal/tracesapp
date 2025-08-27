@@ -426,12 +426,15 @@
             let modelPath = 'model1.glb';
             if (traceData) {
             if (traceData.traceType === 'private') {
-                modelPath = 'models/heart.glb'; // Private traces
+                modelPath = 'models/heart.glb'; 
+                console.log('prvate model');// Private traces
             } else if (traceData.traceType === 'public') {
                 if (traceData.isFriend) {
-                    modelPath = 'models/stargreen.glb'; // Public traces from a friend
+                    modelPath = 'models/stargreen.glb';
+                    console.log('friend public model'); // Public traces from a friend
                 } else {
                     modelPath = 'models/staryellow.glb'; // Public traces from a non-friend
+                    console.log('stranger model');
                 }
             }
         } else {

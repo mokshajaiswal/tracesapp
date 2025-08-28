@@ -2,7 +2,7 @@
   "name": "Traces",
   "short_name": "Traces",
   "description": "A PWA for discovering traces near you.",
-  "start_url": "mokshajaiswal.github.io/tracesapp",
+  "start_url": "mokshajaiswal.github.io",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",

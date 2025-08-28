@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WebXR Pin Collector</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        .ar-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4A90E2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 12; /* Ensure button is on top */
+        }
+        .ar-button:hover {
+            background-color: #357ABD;
+        }
+        .ar-button:active {
+            transform: scale(0.98);
+        }
+        #info-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #info {
+            padding: 15px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+        }
+        #info p { /* Style for the message text */
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 14px;
+            text-align: left;
+            background-color: #eee;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        /* New curtain element to reliably hide the AR view */
+        #curtain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #f0f0f0;
+            z-index: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .arrow {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 48px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 15px;
+            display: none;
+            z-index: 10;
+            user-select: none;
+        }
+        #left-arrow {
+            left: 10px;
+        }
+        #right-arrow {
+            right: 10px;
+        }
+        #tooltip {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 16px;
+            z-index: 11;
+            display: none;
+        }
+        #toggle-ar-button {
+            pointer-events: auto; /* Make this button clickable */
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #E24A4A;
+            display: none; /* Hidden by default */
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="curtain">
+        <div id="info-container">
+            <div id="info">
+                <h1>WebXR Pin Collector</h1>
+                <p>Scan your area to find the pin. Tap the pin to finish.</p>
+            </div>
+        </div>
+    </div>
+    
+    <button id="start-ar-button" class="ar-button">Start AR</button>
+    <button id="toggle-ar-button" class="ar-button">Hide AR</button>
+
+    <div id="overlay">
+        <div id="left-arrow" class="arrow">&lt;</div>
+        <div id="right-arrow" class="arrow">&gt;</div>
+        <div id="tooltip">Rotate around to find the pin!</div>
+    </div>
+
+    <script type="module">
+        // Import THREE.js
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
+
+        let camera, scene, renderer;
+        let pin;
+        let hitTestSource = null;
+        let hitTestSourceRequested = false;
+        let pinPlaced = false;
+        let currentSession = null;
+        let isARVisible = true;
+        let raycaster; // <-- NEW: For detecting taps
+
+        const leftArrow = document.getElementById('left-arrow');
+        const rightArrow = document.getElementById('right-arrow');
+        const tooltip = document.getElementById('tooltip');
+        const startButton = document.getElementById('start-ar-button');
+        const toggleButton = document.getElementById('toggle-ar-button');
+        const curtain = document.getElementById('curtain');
+        const infoText = document.querySelector('#info p');
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster(); // <-- NEW: Initialize the raycaster
+
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-ar', { requiredFeatures: ['hit-test', 'dom-overlay'], domOverlay: { root: document.getElementById('overlay') } }).then((supported) => {
+                    if (supported) {
+                        startButton.addEventListener('click', onStartAR);
+                    } else {
+                        startButton.textContent = "AR Not Supported";
+                        startButton.disabled = true;
+                    }
+                });
+            } else {
+                startButton.textContent = "AR Not Available";
+                startButton.disabled = true;
+            }
+            
+            toggleButton.addEventListener('click', toggleARVisibility);
+
+            createPin();
+            renderer.setAnimationLoop(render);
+            window.addEventListener('resize', onWindowResize, false);
+
+            // --- NEW: Listen for messages from the parent window ---
+            window.addEventListener('message', (event) => {
+                if (event.origin !== window.location.origin) return; // Security check
+                console.log('Message received from parent:', event.data);
+                
+                // Display the received message object in the info box
+                infoText.textContent = JSON.stringify(event.data, null, 2);
+            });
+            
+            curtain.style.display = 'flex';
+            toggleButton.style.display = 'none';
+        }
+
+        async function onStartAR() {
+            try {
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test', 'dom-overlay', 'local'], // Added 'local'
+                    domOverlay: { root: document.getElementById('overlay') }
+                });
+                onSessionStarted(session);
+            } catch (e) {
+                console.error("Failed to start AR session:", e);
+            }
+        }
+
+        function onSessionStarted(session) {
+            currentSession = session;
+            session.addEventListener('end', onSessionEnded);
+            
+            // --- NEW: Listen for the 'select' event (a tap on the screen) ---
+            session.addEventListener('select', onSelect);
+
+            renderer.xr.setReferenceSpaceType('local');
+            renderer.xr.setSession(session);
+            
+            startButton.style.display = 'none';
+            toggleButton.style.display = 'block';
+            toggleButton.textContent = 'Hide AR';
+            curtain.style.display = 'none'; 
+            isARVisible = true;
+        }
+        
+        // --- NEW: This function handles the tap event ---
+        function onSelect() {
+            // Only do something if the pin has been placed and is visible
+            if (pinPlaced && pin.visible) {
+                // Create a ray from the center of the camera
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                
+                // Check if the ray intersects with the pin
+                const intersects = raycaster.intersectObject(pin, true);
+
+                if (intersects.length > 0) {
+                    // Intersection found! The user tapped the pin.
+                    console.log('Pin tapped! Sending completion message.');
+                    
+                    // Send the 'AR_ACTIVITY_COMPLETE' message to the parent window
+                    window.parent.postMessage('AR_ACTIVITY_COMPLETE', window.location.origin);
+                    
+                    // Give visual feedback by making the pin disappear
+                    pin.visible = false;
+                }
+            }
+        }
+
+        function toggleARVisibility() {
+            isARVisible = !isARVisible;
+            if (isARVisible) {
+                curtain.style.display = 'none';
+                toggleButton.textContent = 'Hide AR';
+            } else {
+                curtain.style.display = 'flex';
+                leftArrow.style.display = 'none';
+                rightArrow.style.display = 'none';
+                tooltip.style.display = 'none';
+                toggleButton.textContent = 'Show AR';
+            }
+        }
+
+        function onSessionEnded() {
+            currentSession.removeEventListener('end', onSessionEnded);
+            // --- NEW: Clean up the select event listener ---
+            currentSession.removeEventListener('select', onSelect);
+            currentSession = null;
+            
+            startButton.style.display = 'block';
+            toggleButton.style.display = 'none';
+            curtain.style.display = 'flex';
+
+            pin.visible = false;
+            pinPlaced = false; 
+            leftArrow.style.display = 'none';
+            rightArrow.style.display = 'none';
+            tooltip.style.display = 'none';
+        }
+
+        function createPin() {
+            pin = new THREE.Group();
+            const headGeometry = new THREE.SphereGeometry(0.05, 32, 32);
+            const headMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const pinHead = new THREE.Mesh(headGeometry, headMaterial);
+            pinHead.position.y = 0.15;
+            
+            const bodyGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 32);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+            const pinBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            pinBody.position.y = 0.075;
+            
+            pin.add(pinHead);
+            pin.add(pinBody);
+            
+            pin.visible = false;
+            scene.add(pin);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function render(timestamp, frame) {
+            if (frame) {
+                if (isARVisible) {
+                    const referenceSpace = renderer.xr.getReferenceSpace();
+                    const session = renderer.xr.getSession();
+
+                    if (hitTestSourceRequested === false) {
+                        session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+                            session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+                                hitTestSource = source;
+                            });
+                        });
+                        session.addEventListener('end', function () {
+                            hitTestSourceRequested = false;
+                            hitTestSource = null;
+                        });
+                        hitTestSourceRequested = true;
+                    }
+
+                    if (hitTestSource) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        if (hitTestResults.length > 0 && !pinPlaced) {
+                            const hit = hitTestResults[0];
+                            const pose = hit.getPose(referenceSpace).transform;
+                            
+                            const randomX = (Math.random() - 0.5) * 4;
+                            const randomZ = (Math.random() - 0.5) * 4;
+
+                            pin.position.set(
+                                pose.position.x + randomX,
+                                pose.position.y,
+                                pose.position.z + randomZ
+                            );
+                            
+                            pin.visible = true;
+                            pinPlaced = true;
+
+                            tooltip.style.display = 'block';
+                            setTimeout(() => {
+                                tooltip.style.display = 'none';
+                            }, 5000);
+                        }
+                    }
+
+                    if (pinPlaced && pin.visible) { // <-- Added pin.visible check
+                        const pinWorldPosition = pin.getWorldPosition(new THREE.Vector3());
+                        const pinInCameraSpace = camera.worldToLocal(pinWorldPosition.clone());
+
+                        if (pinInCameraSpace.z > 0) {
+                            if (pinInCameraSpace.x > 0) {
+                                leftArrow.style.display = 'none';
+                                rightArrow.style.display = 'block';
+                            } else {
+                                leftArrow.style.display = 'block';
+                                rightArrow.style.display = 'none';
+                            }
+                        } else {
+                            const pinProjected = pinWorldPosition.clone().project(camera);
+                            if (pinProjected.x < -1) {
+                                leftArrow.style.display = 'block';
+                                rightArrow.style.display = 'none';
+                            } else if (pinProjected.x > 1) {
+                                leftArrow.style.display = 'none';
+                                rightArrow.style.display = 'block';
+                            } else {
+                                leftArrow.style.display = 'none';
+                                rightArrow.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        leftArrow.style.display = 'none';
+                        rightArrow.style.display = 'none';
+                    }
+                }
+                renderer.render(scene, camera);
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

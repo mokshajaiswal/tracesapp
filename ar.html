@@ -257,10 +257,11 @@
             traceData = event.data;
             console.log("Received trace data for AR:", traceData);
             // Optionally recreate pin if data arrives late, but for now, assume it's early
+            createPin();
         });
             startButton.addEventListener('click', onStartAR);
             // Preload the pin model on init for faster appearance, using defaults if no traceData yet
-            createPin();
+        
         }
     
         function createShadow(modelSize) {

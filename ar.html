@@ -58,7 +58,7 @@
                 box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
             }
         }
-       
+      
         @keyframes fade-in {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -100,21 +100,44 @@
             z-index: 12;
             user-select: none;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            transition: opacity 0.3s ease;
             opacity: 0;
         }
         .arrow.visible {
             display: flex;
             opacity: 1;
         }
-        #left-arrow { left: 15px; }
-        #right-arrow { right: 15px; }
+        #left-arrow {
+            left: 15px;
+            animation: jump-left 0.5s ease-in-out infinite alternate;
+        }
+        #right-arrow {
+            right: 15px;
+            animation: jump-right 0.5s ease-in-out infinite alternate;
+        }
+        /* Jumpy animations for arrows */
+        @keyframes jump-left {
+            0% {
+                transform: translateY(-50%) translateX(0);
+            }
+            100% {
+                transform: translateY(-50%) translateX(-10px);
+            }
+        }
+        @keyframes jump-right {
+            0% {
+                transform: translateY(-50%) translateX(0);
+            }
+            100% {
+                transform: translateY(-50%) translateX(10px);
+            }
+        }
         /* CORRECTED Tooltip styles */
         #tooltip {
             position: fixed; /* Ensures positioning is relative to the browser window */
-            top: 30px;
+            bottom: 120px;
             left:20px; /* Moves the element's left edge to the center */
-            transform: translateX(-50%); /* Shifts the element left by half its own width */
+             /* Shifts the element left by half its own width */
             width: calc(100% - 40px); /* Prevents the tooltip from touching screen edges */
             max-width: 450px; /* Sets a max-width for better readability on large screens */
             background-color: rgba(0, 0, 0, 0.6);
@@ -133,13 +156,12 @@
             text-align: center;
             box-sizing: border-box; /* Ensures padding is included in the width calculation */
         }
-
         /* Movement guide animation styles */
         #movement-guide {
             position: fixed;
-            bottom: 20px;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -151,36 +173,11 @@
         #movement-guide.visible {
             display: flex;
         }
-        #movement-guide .guide-text {
-            margin-bottom: 10px;
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 8px 16px;
-            border-radius: 20px;
-        }
-        #movement-guide .guide-arrows {
-            display: flex;
-            justify-content: center;
-        }
-        #movement-guide .guide-arrow {
-            width: 30px;
-            height: 30px;
-            margin: 0 10px;
-            animation: guide-pulse 1.5s infinite ease-in-out;
-        }
-        @keyframes guide-pulse {
-            0%, 100% {
-                opacity: 0.5;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 1;
-                transform: scale(1.2);
-            }
-        }
-       
+      
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 </head>
 <body>
     <div id="start-container">
@@ -195,12 +192,10 @@
         </div>
         <div id="tooltip">Look around to find the Trace!</div>
         <div id="movement-guide">
-            <div class="guide-text">Move your phone around to scan</div>
-            <div class="guide-arrows">
-                <svg class="guide-arrow" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                <svg class="guide-arrow" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </div>
+            <lottie-player src="movephone.json" background="transparent" speed="1" style="width: 300px; height: 300px;" loop autoplay></lottie-player>
         </div>
+        <div id="success-circle" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 0; height: 0; background-color: #0C3879; border-radius: 50%; z-index: 14;"></div>
+        <div id="success-text" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; z-index: 15; color: white;"></div>
     </div>
      <script type="importmap">
     {
@@ -213,7 +208,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-       
+      
         // --- Global Variables ---
         let camera, scene, renderer;
         let pin;
@@ -230,16 +225,17 @@
         let sessionStartTime = 0;
         // --- CONFIGURATION ---
         const CONFIG = {
-            MIN_DISTANCE: 2,
-            MAX_DISTANCE: 4.5,
+            MIN_DISTANCE: 1.5,
+            MAX_DISTANCE: 3.5,
             RANDOM_RADIUS: 0,
             ROTATION_SPEED: 0.04,
-            HORIZONTAL_THRESHOLD: 0.95, // Cosine similarity threshold for horizontal planes
-            SURFACE_DETECTION_TIMEOUT: 13000, // 8 seconds
-            DEFAULT_PLACEMENT_DISTANCE: 2.0, // Default distance in front if no surface (changed to 1m)
-            CHAT_BUBBLE_CANVAS_WIDTH: 260,
-            CHAT_BUBBLE_CANVAS_HEIGHT: 60,
-            CHAT_BUBBLE_VERTICAL_OFFSET: 22
+            HORIZONTAL_THRESHOLD: 0.99, // Tightened for stricter horizontal planes
+            SURFACE_DETECTION_TIMEOUT: 13000, // 13 seconds
+            DEFAULT_PLACEMENT_DISTANCE: 2.0, // Default distance in front if no surface
+            CHAT_BUBBLE_CANVAS_WIDTH: 512, // Increased for higher resolution/sharpness
+            CHAT_BUBBLE_CANVAS_HEIGHT: 128, // Increased for higher resolution/sharpness
+            CHAT_BUBBLE_VERTICAL_OFFSET: 22,
+            CHAT_BUBBLE_HIDE_TIMEOUT: 10000 // Increased from 5000ms to 10 seconds
         };
         const enableDirectionalLight = true;
         let directionalLight = null;
@@ -256,15 +252,16 @@
              window.addEventListener('message', (event) => {
             // Optional: Add a security check for the event's origin
             // if (event.origin !== "https://your-app-domain.com") return;
-           
+          
             traceData = event.data;
             console.log("Received trace data for AR:", traceData);
-            createPin();
+            // Optionally recreate pin if data arrives late, but for now, assume it's early
         });
             startButton.addEventListener('click', onStartAR);
-            // Preload the pin model on init for faster appearance
+            // Preload the pin model on init for faster appearance, using defaults if no traceData yet
+            createPin();
         }
-       
+      
         function createShadow(modelSize) {
             const shadowSizeMultiplier = 0.35;
             const shadowOpacity = 0.4;
@@ -306,18 +303,20 @@
             // Draw rounded rectangle bubble with less padding
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            const padding = 10;
-            ctx.roundRect(padding, padding, CONFIG.CHAT_BUBBLE_CANVAS_WIDTH - 2 * padding, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT - 2 * padding, 15);
+            const padding = 20; // Increased padding for larger canvas
+            ctx.roundRect(padding, padding, CONFIG.CHAT_BUBBLE_CANVAS_WIDTH - 2 * padding, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT - 2 * padding, 30); // Larger radius for smoothness
             ctx.fill();
             // Draw text
             ctx.fillStyle = 'black';
-            ctx.font = 'bold 20px Arial'; // Slightly smaller font if needed
+            ctx.font = 'bold 40px Arial'; // Doubled font size for sharpness
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(text, CONFIG.CHAT_BUBBLE_CANVAS_WIDTH / 2, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT / 2);
             const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter; // For sharper text rendering
+            texture.magFilter = THREE.LinearFilter;
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
-            const geometry = new THREE.PlaneGeometry(CONFIG.CHAT_BUBBLE_CANVAS_WIDTH / 5, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT / 4); // Adjusted local size before scale
+            const geometry = new THREE.PlaneGeometry(CONFIG.CHAT_BUBBLE_CANVAS_WIDTH / 10, CONFIG.CHAT_BUBBLE_CANVAS_HEIGHT / 8); // Adjusted divisors to maintain similar physical size (doubled canvas, so double divisors)
             const bubble = new THREE.Mesh(geometry, material);
             // Position higher above the model
             bubble.position.y = modelSize.y / 2 + CONFIG.CHAT_BUBBLE_VERTICAL_OFFSET;
@@ -375,20 +374,33 @@
             sessionStartTime = Date.now(); // Start timeout timer
             movementGuide.classList.add('visible'); // Show movement guide
         }
-       
+      
         function onSelect() {
             // Only check for intersections if we have a model and it's visible
             if (pinPlaced && pin.visible && collectibleModel) {
                 raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
                 // Intersect with the specific model, not the whole "pin" group (which includes the shadow)
                 const intersects = raycaster.intersectObject(collectibleModel, true);
-               
+              
                 if (intersects.length > 0) {
-                    window.parent.postMessage('AR_ACTIVITY_COMPLETE', '*');
                     pin.visible = false;
+                    document.getElementById('success-circle').style.display = 'block';
+                    document.getElementById('success-text').style.display = 'block';
+                    document.getElementById('success-text').textContent = 'You got it!';
+                    gsap.to('#success-circle', {
+                      width: Math.max(window.innerWidth, window.innerHeight) * 2 + 'px',
+                      height: Math.max(window.innerWidth, window.innerHeight) * 2 + 'px',
+                      duration: 1,
+                      ease: "power2.out"
+                    });
+                    gsap.fromTo('#success-text', 
+                      { y: 80 },
+                      { y: -30, duration: 1, ease: "power2.out" }
+                    );
                     setTimeout(() => {
-                        if(currentSession) currentSession.end();
-                    }, 500);
+                      window.parent.postMessage('AR_ACTIVITY_COMPLETE', '*');
+                      if(currentSession) currentSession.end();
+                    }, 2500);
                 }
             }
         }
@@ -425,7 +437,11 @@
         function createPin() {
             const loader = new GLTFLoader();
             let modelPath = 'model1.glb';
-            if (traceData) {
+            if (!traceData) {
+                // Use defaults if no traceData received
+                console.warn('Trace data not received from parent app. Using default values.');
+                traceData = { traceType: 'public', isFriend: false }; // Default to public non-friend
+            }
             if (traceData.traceType === 'private') {
                 modelPath = 'heart.glb'; // Private traces
             } else if (traceData.traceType === 'public') {
@@ -435,16 +451,13 @@
                     modelPath = 'staryellow.glb'; // Public traces from a non-friend
                 }
             }
-        } else {
-            console.warn('Trace data not received from parent app. Using default model.');
-        }
-        console.log(`Loading model: ${modelPath}`); // For debugging
+            console.log(`Loading model: ${modelPath}`); // For debugging
             loader.load(
                 modelPath,
                 function (gltf) {
                     const model = gltf.scene;
                     collectibleModel = model; // Store a reference to the model for precise tapping
-                   
+                  
                     const box = new THREE.Box3().setFromObject(model);
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
@@ -472,7 +485,7 @@
                     const geometry = new THREE.ConeGeometry(5, 15, 32); // Increased size for visibility
                     const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
                     collectibleModel = new THREE.Mesh(geometry, material);
-                   
+                  
                     const box = new THREE.Box3().setFromObject(collectibleModel);
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
@@ -504,9 +517,9 @@
         function animatePinAppearance(position, isDefaultPlacement = false) {
             pin.visible = true;
             pin.scale.set(0, 0, 0);
-           
+          
             const targetScale = isDefaultPlacement ? 0.029 : 0.0145; // 2x bigger for default placement
-           
+          
             gsap.to(pin.scale, {
                 x: targetScale,
                 y: targetScale,
@@ -522,14 +535,14 @@
                 }
             });
         }
-       
+      
         function createConfettiExplosion(position) {
             const confettiCount = 100;
             const colors = [0xf44336, 0xe91e63, 0x9c27b0, 0x673ab7, 0x3f51b5, 0x2196f3, 0x03a9f4, 0x00bcd4, 0x009688, 0x4caf50, 0x8bc34a, 0xcddc39, 0xffeb3b, 0xffc107, 0xff9800];
             for (let i = 0; i < confettiCount; i++) {
                 // Bigger confetti pieces
                 const geometry = Math.random() > 0.5 ? new THREE.PlaneGeometry(0.025, 0.025) : new THREE.CircleGeometry(0.0125, 16);
-               
+              
                 const material = new THREE.MeshBasicMaterial({
                     color: colors[Math.floor(Math.random() * colors.length)],
                     side: THREE.DoubleSide,
@@ -540,7 +553,7 @@
                 confetti.position.copy(position);
                 confetti.position.y += 0.05;
                 confetti.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-               
+              
                 const spread = 0.3;
                 // Increased vertical velocity for a higher explosion
                 confetti.velocity = new THREE.Vector3(
@@ -551,15 +564,15 @@
                 confetti.angularVelocity = new THREE.Vector3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
                 confetti.lifetime = 2.0;
                 confetti.age = 0;
-               
+              
                 confettiParticles.push(confetti);
                 scene.add(confetti);
             }
         }
-       
+      
         function updateConfetti(dt) {
             const gravity = -0.6;
-           
+          
             for (let i = confettiParticles.length - 1; i >= 0; i--) {
                 const confetti = confettiParticles[i];
                 confetti.age += dt;
@@ -579,7 +592,7 @@
                 }
             }
         }
-       
+      
         function render(timestamp, frame) {
             if (!frame || !renderer) return;
             const deltaTime = (timestamp - (lastTimestamp || timestamp)) / 1000;
@@ -602,6 +615,7 @@
                 const hitTestResults = frame.getHitTestResults(hitTestSource);
                 let lowestHorizontalHit = null;
                 let lowestHorizontalPosition = new THREE.Vector3();
+                let lowestHorizontalMatrix = new THREE.Matrix4();
                 if (hitTestResults.length > 0) {
                     for (const hit of hitTestResults) {
                         const pose = hit.getPose(referenceSpace);
@@ -613,23 +627,27 @@
                                 if (lowestHorizontalHit === null || hitPos.y < lowestHorizontalPosition.y) {
                                     lowestHorizontalHit = hit;
                                     lowestHorizontalPosition.copy(hitPos);
+                                    lowestHorizontalMatrix.copy(matrix);
                                 }
                             }
                         }
                     }
                 }
-               
+              
                 if (lowestHorizontalHit) {
                     const cameraPosition = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld);
                     const distance = cameraPosition.distanceTo(lowestHorizontalPosition);
                     if (distance >= CONFIG.MIN_DISTANCE && distance <= CONFIG.MAX_DISTANCE) {
                         pinPlaced = true;
-                       
+                      
                         const randomX = (Math.random() - 0.5) * 2 * CONFIG.RANDOM_RADIUS;
                         const randomZ = (Math.random() - 0.5) * 2 * CONFIG.RANDOM_RADIUS;
                         const finalPosition = lowestHorizontalPosition.clone().add(new THREE.Vector3(randomX, 0, randomZ));
                         pin.position.copy(finalPosition);
                         pin.position.add(modelOffset);
+                        // Set rotation from the plane's matrix to align with surface normal (upright)
+                        pin.setRotationFromMatrix(lowestHorizontalMatrix);
+                        // But since it's horizontal, rotation should keep Y-up; adjust if needed
                         animatePinAppearance(pin.position);
                         tooltip.style.display = 'block';
                         tooltip.textContent = "There it is! Tap to collect it";
@@ -640,7 +658,7 @@
                             if (pin.userData.bubble) {
                                 pin.userData.bubble.visible = false;
                             }
-                        }, 5000);
+                        }, CONFIG.CHAT_BUBBLE_HIDE_TIMEOUT);
                         movementGuide.classList.remove('visible'); // Hide movement guide once placed
                     } else {
                         tooltip.style.display = 'block';
@@ -655,7 +673,7 @@
                     tooltip.textContent = `Look for a horizontal flat surface like the ground between ${CONFIG.MIN_DISTANCE}m and ${CONFIG.MAX_DISTANCE}m away!`;
                 }
             }
-           
+          
             // Check for timeout if no surface detected
             if (!pinPlaced && Date.now() - sessionStartTime > CONFIG.SURFACE_DETECTION_TIMEOUT) {
                 pinPlaced = true;
@@ -664,21 +682,23 @@
                 direction.applyQuaternion(camera.quaternion);
                 const position = new THREE.Vector3().copy(camera.position).add(direction.multiplyScalar(CONFIG.DEFAULT_PLACEMENT_DISTANCE));
                 pin.position.copy(position);
-                pin.lookAt(camera.position);
+                // For upright in default placement: Rotate only around Y to face camera, keep pitch/roll zero
+                const cameraPositionXZ = new THREE.Vector3(camera.position.x, pin.position.y, camera.position.z); // Project camera to pin's Y plane
+                pin.lookAt(cameraPositionXZ);
                 animatePinAppearance(position, true); // Pass true for default placement to make 2x bigger
                 tooltip.style.display = 'block';
-                tooltip.textContent = "No surface detected. Placed in front—tap to collect!";
+                tooltip.textContent = "Found it!";
                 setTimeout(() => {
-                    if(tooltip.textContent === "No surface detected. Placed in front—tap to collect!") {
+                    if(tooltip.textContent === "Found it!") {
                         tooltip.style.display = 'none';
                     }
                     if (pin.userData.bubble) {
                         pin.userData.bubble.visible = false;
                     }
-                }, 5000);
+                }, CONFIG.CHAT_BUBBLE_HIDE_TIMEOUT);
                 movementGuide.classList.remove('visible'); // Hide movement guide on timeout placement
             }
-           
+          
             if (confettiParticles.length > 0) {
                 updateConfetti(deltaTime);
             }
@@ -686,7 +706,7 @@
                 pin.rotation.y += CONFIG.ROTATION_SPEED;
                 const pinWorldPosition = pin.getWorldPosition(new THREE.Vector3());
                 const pinInCameraSpace = camera.worldToLocal(pinWorldPosition.clone());
-               
+              
                 if (pinInCameraSpace.z > 0) {
                      leftArrow.classList.add('visible');
                      rightArrow.classList.add('visible');
@@ -715,6 +735,6 @@
         }
         init();
     </script>
-   
+  
 </body>
 </html>
